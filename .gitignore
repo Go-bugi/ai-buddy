@@ -1,0 +1,46 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# build output
+out/
+dist/
+release/
+*.tsbuildinfo
+
+# caches
+.eslintcache
+.vite/
+coverage/
+
+# logs
+*.log
+*.log.*
+npm-debug.log*
+pnpm-debug.log*
+
+# env (템플릿인 .env.example 은 커밋)
+.env
+.env.*
+!.env.example
+
+# code signing (절대 커밋 금지)
+*.p12
+*.pfx
+*.cer
+*.provisionprofile
+
+# OS
+.DS_Store
+Thumbs.db
+Desktop.ini
+ehthumbs.db
+
+# editors
+.idea/
+*.swp
+*~
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+!.vscode/launch.json

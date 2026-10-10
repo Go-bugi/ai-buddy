@@ -1,0 +1,28 @@
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Attach Main Process",
+      "type": "node",
+      "request": "attach",
+      "port": 9229,
+      "restart": true,
+      "sourceMaps": true,
+      "outFiles": ["${workspaceFolder}/out/main/**/*.js"]
+    },
+    {
+      "name": "Attach Renderer Process",
+      "type": "chrome",
+      "request": "attach",
+      "port": 9222,
+      "webRoot": "${workspaceFolder}/src/renderer",
+      "timeout": 60000
+    }
+  ],
+  "compounds": [
+    {
+      "name": "Attach All (pnpm dev 실행 후)",
+      "configurations": ["Attach Main Process", "Attach Renderer Process"]
+    }
+  ]
+}

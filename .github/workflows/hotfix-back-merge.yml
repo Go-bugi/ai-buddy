@@ -1,0 +1,69 @@
+name: Hotfix back-merge
+
+# main의 hotfix를 develop과 진행 중인 release/*에 반영한다.
+# - hotfix/* PR이 main에 머지될 때
+# - main의 release-please Release PR(hotfix 버전 커밋)이 머지될 때
+#   → 이것까지 반영해야 나중에 release를 main에 머지할 때 버전 파일이 충돌하지 않는다.
+# 충돌이 없으면 바로 push, 충돌이 있거나 push가 막히면 PR을 만든다.
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+  actions: write
+
+concurrency:
+  group: back-merge
+  cancel-in-progress: false
+
+jobs:
+  back-merge:
+    if: >-
+      github.event.pull_request.merged == true && (
+        startsWith(github.event.pull_request.head.ref, 'hotfix/') ||
+        startsWith(github.event.pull_request.head.ref, 'release-please--branches--main')
+      )
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Back-merge to develop and active release branches
+        env:
+          GH_TOKEN: ${{ github.token }}
+          HEAD_REF: ${{ github.event.pull_request.head.ref }}
+          SOURCE_SHA: ${{ github.event.pull_request.merge_commit_sha }}
+          SOURCE_PR: ${{ github.event.pull_request.number }}
+          MODE: push
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # release-please Release PR은 브랜치 이름 대신 main으로 표시
+          case "$HEAD_REF" in
+            release-please--*) export SOURCE_NAME=main ;;
+            *) export SOURCE_NAME="$HEAD_REF" ;;
+          esac
+
+          targets=()
+          git ls-remote --exit-code --heads origin develop >/dev/null && targets+=(develop)
+          while read -r ref; do
+            [ -n "$ref" ] && targets+=("${ref#refs/heads/}")
+          done < <(git ls-remote --heads origin 'release/*' | awk '{print $2}')
+
+          echo "## Hotfix back-merge: \`${SOURCE_NAME}\`" >> "$GITHUB_STEP_SUMMARY"
+          for target in "${targets[@]}"; do
+            out="$(mktemp)"
+            GITHUB_OUTPUT="$out" TARGET="$target" bash .github/scripts/back-merge.sh
+            echo "- \`${target}\`: $(sed 's/^result=//' "$out")" >> "$GITHUB_STEP_SUMMARY"
+            # GITHUB_TOKEN으로 한 push는 워크플로를 트리거하지 않으므로 Release PR 갱신을 직접 실행
+            if grep -q '^result=pushed' "$out"; then
+              gh workflow run release-please.yml --ref "$target"
+            fi
+          done

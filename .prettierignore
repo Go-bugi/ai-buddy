@@ -1,0 +1,10 @@
+node_modules
+out
+dist
+release
+coverage
+pnpm-lock.yaml
+LICENSE.md
+build/*.plist
+CHANGELOG.md
+.agents

@@ -1,0 +1,53 @@
+name: Release back-merge
+
+# release/* PR이 main에 머지되어 출시되면
+# 1. develop으로 back-merge PR을 만든다.
+# 2. 출시가 끝난 release 브랜치를 삭제한다.
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: back-merge
+  cancel-in-progress: false
+
+jobs:
+  back-merge:
+    if: github.event.pull_request.merged == true && startsWith(github.event.pull_request.head.ref, 'release/')
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Back-merge to develop and delete release branch
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_NAME: ${{ github.event.pull_request.head.ref }}
+          SOURCE_SHA: ${{ github.event.pull_request.head.sha }}
+          SOURCE_PR: ${{ github.event.pull_request.number }}
+          TARGET: develop
+          MODE: pr
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          # release 브랜치가 이미 삭제됐어도 커밋을 가져올 수 있도록 PR ref에서 fetch
+          git fetch origin "refs/pull/${SOURCE_PR}/head"
+
+          echo "## Release back-merge: \`${SOURCE_NAME}\`" >> "$GITHUB_STEP_SUMMARY"
+          out="$(mktemp)"
+          GITHUB_OUTPUT="$out" bash .github/scripts/back-merge.sh
+          echo "- develop: $(sed 's/^result=//' "$out")" >> "$GITHUB_STEP_SUMMARY"
+
+          if git ls-remote --exit-code --heads origin "$SOURCE_NAME" >/dev/null; then
+            git push origin --delete "$SOURCE_NAME"
+            echo "- \`${SOURCE_NAME}\`: 삭제" >> "$GITHUB_STEP_SUMMARY"
+          fi

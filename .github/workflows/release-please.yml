@@ -1,0 +1,153 @@
+name: Release Please
+
+# 브랜치마다 다른 설정 파일로 release-please를 실행한다.
+# - develop    → alpha            (release-please-config.develop.json)
+# - release/*  → beta / rc / 정식 (release-please-config.release.json)
+# - main       → hotfix           (release-please-config.json)
+#
+# Release PR이 머지되어 릴리스가 만들어지면
+# - mac / Windows 빌드 후 GitHub Release에 업로드
+# - 단계 전환용 release-as 설정 삭제
+# - 정식 버전이면 직전 정식 버전부터의 전체 변경 사항을 릴리스 노트에 추가
+
+on:
+  push:
+    branches: [main, develop, 'release/**']
+  workflow_dispatch:
+
+permissions:
+  contents: write
+  pull-requests: write
+  issues: write
+
+concurrency:
+  group: release-please-${{ github.ref_name }}
+  cancel-in-progress: false
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      config: ${{ steps.config.outputs.file }}
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+      version: ${{ steps.release.outputs.version }}
+    steps:
+      - name: Select config for branch
+        id: config
+        env:
+          BRANCH: ${{ github.ref_name }}
+        run: |
+          case "$BRANCH" in
+            main) file=release-please-config.json ;;
+            develop) file=release-please-config.develop.json ;;
+            release/*) file=release-please-config.release.json ;;
+            *) echo "::error::지원하지 않는 브랜치: $BRANCH"; exit 1 ;;
+          esac
+          echo "file=$file" >> "$GITHUB_OUTPUT"
+
+      - uses: googleapis/release-please-action@v5
+        id: release
+        with:
+          config-file: ${{ steps.config.outputs.file }}
+          target-branch: ${{ github.ref_name }}
+
+  # release-please가 GITHUB_TOKEN으로 만든 태그는 다른 워크플로를 트리거하지 않으므로
+  # 같은 워크플로 안에서 이어서 빌드한다.
+  build:
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-latest
+            target: --mac
+          - os: windows-latest
+            target: --win
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.release-please.outputs.tag_name }}
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run build
+      - name: Package
+        run: pnpm exec electron-builder ${{ matrix.target }} --publish never
+        env:
+          # 서명 인증서 없이 빌드 (배포 시 secrets로 CSC_LINK / CSC_KEY_PASSWORD 설정)
+          CSC_IDENTITY_AUTO_DISCOVERY: false
+      - name: Upload to GitHub Release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+        run: |
+          set -euo pipefail
+          shopt -s nullglob
+          files=()
+          for f in release/*/*.{dmg,zip,exe,blockmap,yml}; do
+            [ "$(basename "$f")" = builder-debug.yml ] || files+=("$f")
+          done
+          gh release upload "$TAG" "${files[@]}" --clobber --repo "$GITHUB_REPOSITORY"
+
+  # 단계 전환용으로 넣은 release-as는 릴리스가 끝나면 지운다.
+  # (남아 있으면 다음 Release PR도 같은 버전으로 고정됨)
+  clear-release-as:
+    needs: release-please
+    if: needs.release-please.outputs.release_created == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Remove release-as from config
+        env:
+          CONFIG: ${{ needs.release-please.outputs.config }}
+        run: |
+          set -euo pipefail
+          node -e '
+            const fs = require("fs");
+            const file = process.argv[1];
+            const config = JSON.parse(fs.readFileSync(file, "utf8"));
+            if (!("release-as" in config.packages["."])) process.exit(0);
+            delete config.packages["."]["release-as"];
+            fs.writeFileSync(file, JSON.stringify(config, null, 2) + "\n");
+          ' "$CONFIG"
+          if git diff --quiet; then exit 0; fi
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git commit -am "chore: clear release-as"
+          git push
+
+  # release-please 노트에는 같은 브랜치의 직전 릴리스 이후 변경만 들어간다.
+  # - 정식 버전: 직전 rc 이후만 나옴
+  # - 첫 beta(beta.1): develop을 그대로 복사해서 시작하므로 거의 비어 있음
+  # 그래서 이 둘에는 직전 정식 버전부터의 전체 변경 사항(GitHub 자동 생성 노트)을 덧붙인다.
+  full-notes:
+    needs: release-please
+    if: >-
+      needs.release-please.outputs.release_created == 'true' && (
+        !contains(needs.release-please.outputs.version, '-') ||
+        endsWith(needs.release-please.outputs.version, '-beta.1')
+      )
+    runs-on: ubuntu-latest
+    steps:
+      - name: Append full changes since previous stable release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+        run: |
+          set -euo pipefail
+          previous="$(gh release list --repo "$GITHUB_REPOSITORY" --exclude-pre-releases --limit 20 --json tagName --jq '.[].tagName' | grep -vx "$TAG" | head -1 || true)"
+          if [ -z "$previous" ]; then
+            echo "이전 정식 버전이 없어 건너뜁니다."
+            exit 0
+          fi
+          generated="$(gh api "repos/$GITHUB_REPOSITORY/releases/generate-notes" -f tag_name="$TAG" -f previous_tag_name="$previous" --jq .body)"
+          current="$(gh release view "$TAG" --repo "$GITHUB_REPOSITORY" --json body --jq .body)"
+          printf '%s\n\n---\n\n## %s 이후 전체 변경 사항\n\n%s\n' "$current" "$previous" "$generated" > notes.md
+          gh release edit "$TAG" --repo "$GITHUB_REPOSITORY" --notes-file notes.md

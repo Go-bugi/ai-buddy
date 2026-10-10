@@ -1,0 +1,102 @@
+name: Promote
+
+# 릴리스 단계 전환 버튼
+# - start-release: develop에서 release/x.y.0을 만들고 beta.1 시작, develop은 다음 버전 alpha.1로
+# - rc:            release/x.y.0을 rc.1로
+# - stable:        release/x.y.0을 정식 버전으로
+# 브랜치의 release-please 설정에 release-as를 넣고 release-please를 실행한다.
+# (Release-As 커밋 footer는 back-merge로 다른 브랜치에 전파되어 버전을 덮어쓰므로 쓰지 않는다)
+# release-as는 릴리스가 만들어지면 release-please.yml이 자동으로 지운다.
+
+on:
+  workflow_dispatch:
+    inputs:
+      stage:
+        description: 단계
+        type: choice
+        options: [start-release, rc, stable]
+        required: true
+      version:
+        description: '버전 (예: 1.3.0)'
+        type: string
+        required: true
+
+permissions:
+  contents: write
+  actions: write
+
+jobs:
+  promote:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Promote
+        env:
+          GH_TOKEN: ${{ github.token }}
+          STAGE: ${{ inputs.stage }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          set -euo pipefail
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+          if ! [[ "$VERSION" =~ ^([0-9]+)\.([0-9]+)\.0$ ]]; then
+            echo "::error::버전은 x.y.0 형식이어야 합니다: $VERSION"
+            exit 1
+          fi
+          major="${BASH_REMATCH[1]}"
+          minor="${BASH_REMATCH[2]}"
+          release_branch="release/${VERSION}"
+
+          # 브랜치의 release-please 설정 파일에 release-as를 넣고 push
+          release_as() {
+            local branch="$1" release_as="$2" message="$3" config type
+            case "$branch" in
+              develop) config=release-please-config.develop.json; type=release ;;
+              release/*) config=release-please-config.release.json; type=promote ;;
+            esac
+            git switch -C "$branch" "origin/$branch"
+            node -e '
+              const fs = require("fs");
+              const [file, version] = process.argv.slice(1);
+              const config = JSON.parse(fs.readFileSync(file, "utf8"));
+              config.packages["."]["release-as"] = version;
+              fs.writeFileSync(file, JSON.stringify(config, null, 2) + "\n");
+            ' "$config" "$release_as"
+            # release-please는 changelog에 보일 커밋이 없으면 Release PR을 만들지 않으므로
+            # changelog의 Release 섹션에 표시되는 타입을 쓴다.
+            # develop은 release, release 브랜치는 promote 타입 (develop changelog에서는 promote를 숨김)
+            git commit -am "${type}: ${message}"
+            git push origin "$branch"
+          }
+
+          # GITHUB_TOKEN으로 한 push는 워크플로를 트리거하지 않으므로 직접 실행
+          run_release_please() {
+            gh workflow run release-please.yml --ref "$1"
+          }
+
+          case "$STAGE" in
+            start-release)
+              if git ls-remote --exit-code --heads origin "$release_branch" >/dev/null; then
+                echo "::error::${release_branch} 브랜치가 이미 있습니다."
+                exit 1
+              fi
+              git push origin "origin/develop:refs/heads/${release_branch}"
+              git fetch origin "$release_branch"
+              release_as "$release_branch" "${VERSION}-beta.1" "start ${VERSION} beta"
+              release_as develop "${major}.$((minor + 1)).0-alpha.1" "start ${major}.$((minor + 1)).0 development"
+              run_release_please "$release_branch"
+              run_release_please develop
+              ;;
+            rc)
+              release_as "$release_branch" "${VERSION}-rc.1" "${VERSION} to release candidate"
+              run_release_please "$release_branch"
+              ;;
+            stable)
+              release_as "$release_branch" "${VERSION}" "${VERSION} to stable"
+              run_release_please "$release_branch"
+              ;;
+          esac

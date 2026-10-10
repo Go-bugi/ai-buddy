@@ -1,0 +1,75 @@
+{
+  "name": "ai-buddy",
+  "version": "0.0.0",
+  "private": true,
+  "description": "AI Buddy desktop app (Electron + React + TypeScript)",
+  "author": {
+    "name": "Go-bugi",
+    "url": "https://github.com/Go-bugi"
+  },
+  "homepage": "https://github.com/Go-bugi/ai-buddy",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Go-bugi/ai-buddy.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Go-bugi/ai-buddy/issues"
+  },
+  "main": "./out/main/index.js",
+  "packageManager": "pnpm@10.34.6",
+  "engines": {
+    "node": ">=24.21.0",
+    "pnpm": ">=10"
+  },
+  "scripts": {
+    "dev": "node scripts/dev.mjs",
+    "start": "electron .",
+    "typecheck": "pnpm run typecheck:node && pnpm run typecheck:web",
+    "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
+    "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
+    "lint": "eslint --cache .",
+    "lint:fix": "eslint --cache --fix .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "build": "pnpm run typecheck && node scripts/build.mjs",
+    "build:unpack": "pnpm run build && electron-builder --dir",
+    "build:mac": "pnpm run build && electron-builder --mac",
+    "build:win": "pnpm run build && electron-builder --win",
+    "build:win:arm64": "pnpm run build && electron-builder --win --arm64",
+    "prepare": "husky"
+  },
+  "lint-staged": {
+    "*.{js,jsx,ts,tsx,mjs,cjs}": [
+      "eslint --cache --fix",
+      "prettier --write"
+    ],
+    "*.{json,css,html,md,yml,yaml}": [
+      "prettier --write"
+    ]
+  },
+  "devDependencies": {
+    "@commitlint/cli": "^21.2.3",
+    "@commitlint/config-conventional": "^21.2.3",
+    "@eslint/js": "^9.39.5",
+    "@types/node": "^24.19.2",
+    "@types/react": "^19.2.7",
+    "@types/react-dom": "^19.2.3",
+    "@vitejs/plugin-react": "^5.1.1",
+    "electron": "^44.7.0",
+    "electron-builder": "^26.0.12",
+    "eslint": "^9.39.1",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.0.1",
+    "eslint-plugin-react-refresh": "^0.4.24",
+    "globals": "^17.13.0",
+    "husky": "^9.1.7",
+    "lint-staged": "^17.6.0",
+    "prettier": "^3.7.4",
+    "react": "^19.2.1",
+    "react-dom": "^19.2.1",
+    "typescript": "^5.9.3",
+    "typescript-eslint": "^8.71.1",
+    "vite": "^7.2.6"
+  }
+}

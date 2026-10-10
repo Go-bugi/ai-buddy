@@ -1,0 +1,74 @@
+name: PR Check
+
+on:
+  pull_request:
+    types: [opened, edited, synchronize, reopened]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: pr-check-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  # squash merge 시 PR 제목이 커밋 메시지가 되고, release-please가 이걸로 버전과 CHANGELOG를 만든다.
+  # 로컬 커밋과 같은 commitlint 규칙(commitlint.config.mjs)으로 검사한다.
+  title:
+    runs-on: ubuntu-latest
+    env:
+      TITLE: ${{ github.event.pull_request.title }}
+      HEAD_REF: ${{ github.event.pull_request.head.ref }}
+      BASE_REF: ${{ github.event.pull_request.base.ref }}
+    steps:
+      # release → main PR은 merge commit으로 머지하므로 제목 형식을 쓰지 않는다
+      # (Conventional Commits 형식이면 main CHANGELOG에 한 번 더 기록됨)
+      - name: Skip release → main
+        id: skip
+        run: |
+          if [[ "$HEAD_REF" == release/* && "$BASE_REF" == main ]]; then
+            echo "release → main PR은 제목 검사를 건너뜁니다."
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - uses: actions/checkout@v4
+        if: steps.skip.outputs.skip != 'true'
+      - uses: pnpm/action-setup@v4
+        if: steps.skip.outputs.skip != 'true'
+      - uses: actions/setup-node@v4
+        if: steps.skip.outputs.skip != 'true'
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - if: steps.skip.outputs.skip != 'true'
+        run: pnpm install --frozen-lockfile
+
+      - name: Check title with commitlint
+        if: steps.skip.outputs.skip != 'true'
+        run: |
+          if ! printf '%s\n' "$TITLE" | pnpm exec commitlint; then
+            echo "::error::PR 제목이 커밋 규칙에 맞지 않습니다: \"$TITLE\""
+            echo "예) feat: 대화 기록 검색 추가 / fix(ui): 다크 모드 버튼 색 수정"
+            exit 1
+          fi
+          # release, promote 타입은 Promote 워크플로 전용
+          reserved='^(release|promote)[(!:]'
+          if [[ "$TITLE" =~ $reserved ]]; then
+            echo "::error::release, promote 타입은 Promote 워크플로 전용입니다. feat, fix 등을 사용하세요."
+            exit 1
+          fi
+
+  check:
+    if: github.event.action != 'edited'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - run: pnpm run format:check
+      - run: pnpm run lint
+      - run: pnpm run build

@@ -1,0 +1,41 @@
+appId: com.aibuddy.app
+productName: AI Buddy
+directories:
+  buildResources: build
+  output: release/${version}
+# vite가 의존성까지 번들하므로 out/ 만 앱에 포함
+files:
+  - out/**/*
+  - package.json
+npmRebuild: false
+
+# ---------- macOS ----------
+mac:
+  category: public.app-category.productivity
+  artifactName: ${name}-${version}-mac-${arch}.${ext}
+  target:
+    - target: dmg
+      arch: [arm64, x64]
+    - target: zip
+      arch: [arm64, x64]
+  hardenedRuntime: true
+  entitlementsInherit: build/entitlements.mac.plist
+  # 인증서가 없으면 서명을 건너뜀(로컬 개발 빌드). 배포 시 CSC_LINK / CSC_KEY_PASSWORD 환경변수 사용
+  notarize: false
+dmg:
+  artifactName: ${name}-${version}-mac-${arch}.${ext}
+
+# ---------- Windows ----------
+win:
+  executableName: ai-buddy
+  target:
+    - target: nsis
+      arch: [x64]
+nsis:
+  artifactName: ${name}-${version}-win-${arch}-setup.${ext}
+  oneClick: false
+  perMachine: false
+  allowToChangeInstallationDirectory: true
+  shortcutName: ${productName}
+  uninstallDisplayName: ${productName}
+  createDesktopShortcut: always
