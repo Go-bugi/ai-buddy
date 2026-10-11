@@ -1,5 +1,6 @@
 export interface Api {
   ping: () => void;
+  getAppVersion: () => Promise<string>;
   versions: {
     electron: string;
     chrome: string;
