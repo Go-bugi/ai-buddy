@@ -71,8 +71,7 @@
       "bump-minor-pre-major": true,
       "versioning": "prerelease",
       "prerelease": true,
-      "prerelease-type": "alpha.1",
-      "release-as": "0.1.0-alpha.1"
+      "prerelease-type": "alpha.1"
     }
   }
 }
