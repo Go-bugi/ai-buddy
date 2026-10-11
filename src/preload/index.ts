@@ -4,6 +4,7 @@ import type { Api } from './index.d';
 // renderer에 노출할 API. ipcRenderer를 통째로 노출하지 않고 필요한 채널만 감싼다.
 const api: Api = {
   ping: () => ipcRenderer.send('ping'),
+  getAppVersion: () => ipcRenderer.invoke('app:get-version'),
   versions: {
     electron: process.versions.electron,
     chrome: process.versions.chrome,

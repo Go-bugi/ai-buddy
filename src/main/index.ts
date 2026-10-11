@@ -61,6 +61,7 @@ app.whenReady().then(() => {
   }
 
   ipcMain.on('ping', () => console.log('pong'));
+  ipcMain.handle('app:get-version', () => app.getVersion());
 
   createWindow();
 
