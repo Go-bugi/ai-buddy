@@ -1,11 +1,15 @@
 # AI Buddy
 
-Electron + React + TypeScript + Vite 데스크톱 앱.
+Tauri 2 + React + TypeScript + Vite 데스크톱 앱.
 
 ## 요구 사항
 
 - Node.js **24.21.0+** (`.nvmrc` 참고)
 - pnpm **10** — 프로젝트에 버전이 고정되어 있으므로 corepack 사용을 권장합니다.
+- Rust **stable** ([rustup](https://rustup.rs/)으로 설치, `rustup update stable`로 갱신)
+- OS별 준비물: [Tauri 사전 요구 사항](https://v2.tauri.app/start/prerequisites/)
+  - macOS: Xcode Command Line Tools
+  - Windows: Microsoft C++ Build Tools, WebView2(Windows 10 이상은 기본 설치)
 
 ```bash
 corepack enable
@@ -18,53 +22,51 @@ pnpm install
 pnpm dev
 ```
 
+첫 실행은 Rust 의존성을 컴파일하느라 몇 분 걸립니다. 그다음부터는 바뀐 부분만 다시 빌드합니다.
+
 ## 스크립트
 
-| 스크립트               | 설명                                                   |
-| ---------------------- | ------------------------------------------------------ |
-| `pnpm dev`             | 개발 모드 (renderer HMR, main 변경 시 Electron 재시작) |
-| `pnpm start`           | 빌드된 `out/`으로 앱 실행                              |
-| `pnpm build`           | 타입체크 후 main / preload / renderer 빌드             |
-| `pnpm build:mac`       | macOS 패키징 (dmg, zip / arm64, x64)                   |
-| `pnpm build:win`       | Windows 패키징 (nsis 설치 파일 / x64)                  |
-| `pnpm build:win:arm64` | Windows ARM 패키징                                     |
-| `pnpm build:unpack`    | 설치 파일 없이 패키징된 폴더만 생성 (빠른 확인용)      |
-| `pnpm lint` / `format` | ESLint / Prettier                                      |
-| `pnpm typecheck`       | main(node)과 renderer(web) 각각 타입체크               |
+| 스크립트                         | 설명                                                        |
+| -------------------------------- | ----------------------------------------------------------- |
+| `pnpm dev`                       | 개발 모드 (renderer HMR, Rust 변경 시 다시 빌드하고 재시작) |
+| `pnpm build`                     | 타입체크 후 renderer 빌드 (`out/renderer`)                  |
+| `pnpm build:mac`                 | macOS dmg 패키징 (지금 Mac의 아키텍처)                      |
+| `pnpm build:win`                 | Windows nsis 설치 파일 (x64)                                |
+| `pnpm build:win:arm64`           | Windows ARM 설치 파일                                       |
+| `pnpm build:unpack`              | 설치 파일 없이 실행 파일만 빌드 (빠른 확인용)               |
+| `pnpm lint` / `format`           | ESLint / Prettier                                           |
+| `pnpm lint:rust` / `format:rust` | Clippy / rustfmt                                            |
+| `pnpm typecheck`                 | `vite.config.ts`(node)와 renderer(web) 각각 타입체크        |
 
-결과물은 `release/<version>/`에 생성됩니다.
+결과물은 `src-tauri/target/release/bundle/`(다른 target을 지정하면 `src-tauri/target/<target>/release/bundle/`)에 생성됩니다.
 
 ## 구조
 
 ```
 src/
-  main/       Electron main 프로세스 (Node)
-  preload/    contextBridge로 renderer에 API 노출 (index.d.ts에 타입)
-  renderer/   React 앱
-scripts/
-  dev.mjs     Vite dev 서버 + main/preload watch 빌드 + Electron 실행
-  build.mjs   main / preload / renderer 프로덕션 빌드
-vite.main.config.ts
-vite.preload.config.ts
-vite.renderer.config.ts
-electron-builder.yml
+  renderer/          React 앱
+    src/api.ts       Rust 명령을 invoke로 감싼 함수 모음
+src-tauri/
+  src/lib.rs         앱 진입점, Rust 명령(#[tauri::command])
+  capabilities/      renderer에 허용할 권한
+  icons/             앱 아이콘 (pnpm tauri icon <png>로 다시 생성)
+  tauri.conf.json    창, 보안(CSP), 번들 설정
+vite.config.ts
 ```
 
-- main / preload는 의존성까지 Vite로 번들되므로 패키징된 앱에는 `out/`만 들어갑니다.
-  런타임에 쓰는 라이브러리도 `devDependencies`에 추가하면 됩니다.
-- renderer는 `contextIsolation` + `sandbox`가 켜져 있어 Node API에 직접 접근할 수 없습니다.
-  필요한 기능은 `src/preload/index.ts`의 `api`에 추가하고 `ipcMain`으로 처리하세요.
+- renderer는 OS에 직접 접근할 수 없습니다. 필요한 기능은 `src-tauri/src/lib.rs`에 명령으로 만들고 `src/renderer/src/api.ts`의 `api`에 추가하세요. 플러그인을 쓰면 `capabilities/default.json`에 권한을 추가해야 합니다.
+- 앱 버전은 `package.json`의 `version`을 그대로 씁니다. `src-tauri/Cargo.toml`의 버전은 `0.0.0`으로 고정되어 있습니다.
 
-## 디버깅 (VS Code)
+## 디버깅
 
-`pnpm dev`를 실행한 뒤 실행 및 디버그 탭에서 **Attach All**을 선택합니다.
-main은 9229, renderer는 9222 포트로 연결됩니다.
+- renderer: 개발 모드에서 창을 우클릭해 **Inspect**를 고르거나, macOS는 `Cmd+Option+I`, Windows는 `Ctrl+Shift+I`로 DevTools를 엽니다.
+- Rust: `println!` 출력은 `pnpm dev`를 실행한 터미널에 나옵니다. 중단점이 필요하면 VS Code에 CodeLLDB 확장을 설치해 붙입니다.
 
 ## 포맷팅 / 커밋 규칙
 
 - 저장 시 Prettier 포맷 + ESLint 자동 수정 (`.vscode/settings.json`)
-  — 추천 확장(Prettier, ESLint, EditorConfig)을 설치하세요.
-- 커밋 시 husky + lint-staged가 변경된 파일에 ESLint, Prettier를 적용합니다.
+  — 추천 확장(Prettier, ESLint, EditorConfig, Tauri, rust-analyzer)을 설치하세요.
+- 커밋 시 husky + lint-staged가 변경된 파일에 ESLint, Prettier, rustfmt를 적용합니다.
 - 줄바꿈은 OS와 무관하게 **LF**로 통일됩니다 (`.gitattributes`, `.editorconfig`, Prettier `endOfLine`).
 
 ### Windows 개발 시
@@ -160,14 +162,15 @@ main은 9229, renderer는 9222 포트로 연결됩니다.
 | 대상    | macOS에서 | Windows에서            |
 | ------- | --------- | ---------------------- |
 | macOS   | ✅        | ❌ (Apple 정책상 불가) |
-| Windows | ✅        | ✅                     |
+| Windows | ❌        | ✅                     |
 
-release-please가 릴리스를 만들면 `.github/workflows/release-please.yml`이 macOS / Windows 러너에서 각각 빌드해 GitHub Release에 업로드합니다. PR에서는 `pr-check.yml`이 포맷, 린트, 타입체크, 빌드만 확인합니다.
+Tauri는 각 OS에서 빌드하는 것을 기준으로 합니다. Windows 설치 파일은 Windows에서, macOS dmg는 Mac에서 만듭니다. Mac에서 Intel용을 만들려면 `rustup target add x86_64-apple-darwin` 후 `pnpm tauri build --target x86_64-apple-darwin --bundles dmg`를 실행합니다.
+
+release-please가 릴리스를 만들면 `.github/workflows/release-please.yml`이 macOS(arm64, x64) / Windows(x64) 러너에서 각각 빌드해 `ai-buddy-<version>-mac-arm64.dmg`, `ai-buddy-<version>-win-x64-setup.exe` 같은 이름으로 GitHub Release에 업로드합니다. PR에서는 `pr-check.yml`이 포맷, 린트, 타입체크, renderer 빌드와 Rust 검사(rustfmt, clippy)만 확인합니다.
 
 ### 코드 서명
 
-현재는 서명 없이 빌드됩니다. 배포 시 환경변수로 인증서를 지정하세요.
+현재는 서명 없이 빌드됩니다(macOS는 ad-hoc 서명). 배포할 때는 [Tauri 서명 문서](https://v2.tauri.app/distribute/sign/macos/)를 따라 secrets를 설정하세요.
 
-- macOS: `CSC_LINK`, `CSC_KEY_PASSWORD`, 공증용 `APPLE_ID`, `APPLE_APP_SPECIFIC_PASSWORD`, `APPLE_TEAM_ID`
-  (공증하려면 `electron-builder.yml`에서 `mac.notarize`를 `true`로 바꿉니다)
-- Windows: `CSC_LINK`, `CSC_KEY_PASSWORD` (또는 `WIN_CSC_LINK`, `WIN_CSC_KEY_PASSWORD`)
+- macOS: `APPLE_CERTIFICATE`, `APPLE_CERTIFICATE_PASSWORD`, `APPLE_SIGNING_IDENTITY`, 공증용 `APPLE_ID`, `APPLE_PASSWORD`, `APPLE_TEAM_ID`
+- Windows: `tauri.conf.json`의 `bundle.windows`에 인증서 지문(`certificateThumbprint`)이나 `signCommand`를 설정

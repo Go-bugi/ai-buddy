@@ -1,0 +1,27 @@
+[package]
+name = "ai-buddy"
+# 앱 버전은 tauri.conf.json이 package.json에서 읽는다. 브랜치마다 값이 달라지지 않도록 이 값은 고정한다.
+version = "0.0.0"
+description = "AI Buddy desktop app"
+edition = "2021"
+rust-version = "1.85"
+publish = false
+
+[lib]
+# main.rs의 바이너리 이름과 겹치지 않도록 _lib을 붙인다 (Windows에서 이름이 같으면 빌드가 깨짐)
+name = "ai_buddy_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+tauri = { version = "2", features = [] }
+tauri-plugin-opener = "2"
+
+[profile.release]
+codegen-units = 1
+lto = true
+opt-level = "s"
+panic = "abort"
+strip = true

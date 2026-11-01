@@ -6,6 +6,8 @@ node_modules/
 out/
 dist/
 release/
+src-tauri/target/
+src-tauri/gen/
 *.tsbuildinfo
 
 # caches
@@ -43,4 +45,3 @@ ehthumbs.db
 .vscode/*
 !.vscode/settings.json
 !.vscode/extensions.json
-!.vscode/launch.json

@@ -5,36 +5,42 @@
 ## 명령어
 
 ```bash
-pnpm dev              # renderer HMR + main/preload watch 빌드 + Electron 실행
-pnpm typecheck        # typecheck:node(main, preload) + typecheck:web(renderer)
+pnpm dev              # Vite dev 서버(HMR) + Rust 빌드 + 앱 실행. Rust 코드가 바뀌면 앱을 다시 빌드해 재시작
+pnpm typecheck        # typecheck:node(vite.config.ts) + typecheck:web(renderer)
 pnpm lint             # ESLint (lint:fix로 자동 수정)
+pnpm lint:rust        # cargo clippy (경고도 실패로 처리)
 pnpm format:check     # Prettier 검사 (format으로 자동 수정)
-pnpm build            # typecheck 후 main → preload → renderer 순서로 out/에 빌드
-pnpm build:unpack     # 설치 파일 없이 패키징 폴더만 생성 (release/<version>/)
+pnpm format:check:rust # rustfmt 검사 (format:rust로 자동 수정)
+pnpm build            # typecheck 후 renderer만 out/renderer에 빌드
+pnpm build:unpack     # 설치 파일 없이 앱 실행 파일만 빌드 (src-tauri/target/release/)
+pnpm build:mac        # dmg 패키징. build:win은 nsis 설치 파일
 ```
 
-- 테스트 러너는 아직 없습니다. PR CI(`pr-check.yml`)는 `format:check`, `lint`, `build`를 돌립니다.
+- 테스트 러너는 아직 없습니다. PR CI(`pr-check.yml`)는 `format:check`, `lint`, `build`, `format:check:rust`, `lint:rust`를 돌립니다.
 - Node 24.21.0 이상이 필요합니다(`.nvmrc`). `pnpm-workspace.yaml`의 `engineStrict` 때문에 Node 버전이 낮으면 `pnpm run`과 `pnpm install`이 실패하니, 먼저 `nvm use`를 실행하세요.
-- 커밋할 때 husky가 lint-staged로 ESLint와 Prettier를 적용합니다. `commit-msg` hook은 없어서 커밋 메시지는 검사하지 않습니다.
+- Rust stable 툴체인이 필요합니다(`Cargo.toml`의 `rust-version` 이상). `rustup update stable`로 맞춥니다.
+- 커밋할 때 husky가 lint-staged로 ESLint, Prettier, rustfmt를 적용합니다. `commit-msg` hook은 없어서 커밋 메시지는 검사하지 않습니다.
 
 ## 구조
 
-Electron의 세 영역을 Vite 설정 파일 세 개로 따로 빌드합니다. Electron 전용 빌드 도구(electron-vite 등)는 쓰지 않고, `scripts/dev.mjs`와 `scripts/build.mjs`가 Vite API를 직접 호출합니다.
+[Tauri 2](https://v2.tauri.app/)를 씁니다. 화면은 React 앱(`src/renderer`)이고, OS 기능과 창 관리는 Rust(`src-tauri`)가 맡습니다.
 
-| 영역     | 설정                      | 출력           | 특징                                        |
-| -------- | ------------------------- | -------------- | ------------------------------------------- |
-| main     | `vite.main.config.ts`     | `out/main`     | Node용 CJS 단일 파일                        |
-| preload  | `vite.preload.config.ts`  | `out/preload`  | sandbox에서 돌도록 CJS 단일 파일            |
-| renderer | `vite.renderer.config.ts` | `out/renderer` | React 앱. `file://`로 열리므로 `base: './'` |
+| 영역     | 위치           | 빌드                                       | 출력                                 |
+| -------- | -------------- | ------------------------------------------ | ------------------------------------ |
+| renderer | `src/renderer` | `vite.config.ts`                           | `out/renderer`                       |
+| 앱(Rust) | `src-tauri`    | `cargo`. Tauri CLI가 `tauri.conf.json`대로 | `src-tauri/target/<target>/release/` |
 
-- **의존성은 모두 번들됩니다.** main과 preload는 `ssr.noExternal: true`라서 `electron`만 빼고 전부 한 파일에 들어갑니다. electron-builder는 `out/`만 패키징하므로 런타임 라이브러리도 `devDependencies`에 추가합니다.
-- **개발 모드 동작.** `dev.mjs`는 renderer를 dev 서버(5173, `strictPort`)로 띄웁니다. preload가 다시 빌드되면 renderer를 새로고침하고, main이 다시 빌드되면 Electron을 재시작합니다. main은 `VITE_DEV_SERVER_URL` 환경 변수가 있으면 dev 서버를, 없으면 `out/renderer/index.html`을 엽니다. 디버거 포트는 main 9229, renderer 9222입니다.
-- **renderer는 Node API에 접근할 수 없습니다.** `contextIsolation`과 `sandbox`가 켜져 있어서, renderer는 preload가 노출한 `window.api`로만 main과 통신합니다. IPC 기능을 추가할 때는 세 곳을 함께 고칩니다.
-  1. `src/main/index.ts`에서 `ipcMain`으로 채널을 처리합니다.
-  2. `src/preload/index.ts`의 `api`에 그 채널을 감싸는 함수를 추가합니다. `ipcRenderer`를 통째로 노출하지 않습니다.
-  3. `src/preload/index.d.ts`의 `Api` 타입을 고칩니다. 이 파일이 `tsconfig.web.json`에 포함되어 있어서 renderer가 `window.api` 타입을 받습니다.
-- **tsconfig는 둘로 나뉩니다.** `tsconfig.node.json`은 main과 preload, `vite.*.config.ts`를 다룹니다. `tsconfig.web.json`은 renderer와 `src/preload/*.d.ts`를 다룹니다. renderer에서는 `@renderer/*` 별칭으로 `src/renderer/src`를 가리킵니다.
-- `src/main/index.ts`의 `setAppUserModelId` 값은 `electron-builder.yml`의 `appId`(`com.aibuddy.app`)와 같아야 합니다.
+- **Tauri CLI가 Vite를 부릅니다.** `pnpm dev`(`tauri dev`)는 `beforeDevCommand`로 `pnpm dev:web`(Vite, 5173 `strictPort`)를 띄우고 그 주소를 웹뷰에 엽니다. `tauri build`는 `beforeBuildCommand`로 `pnpm build`를 돌린 뒤 `out/renderer`를 실행 파일에 넣습니다.
+- **웹뷰는 OS마다 다릅니다.** macOS는 WKWebView(Safari 계열), Windows는 WebView2(Chromium)입니다. CSS와 Web API는 Safari에서도 동작하는지 확인하고, `vite.config.ts`의 `build.target`도 플랫폼에 따라 다르게 잡습니다.
+- **renderer는 OS에 직접 접근할 수 없습니다.** Rust 명령이나 플러그인을 거쳐야 하고, 쓸 수 있는 기능은 `src-tauri/capabilities/*.json`에 선언한 권한으로 제한됩니다. 기능을 추가할 때는 아래를 함께 고칩니다.
+  1. `src-tauri/src/lib.rs`에 `#[tauri::command]` 함수를 만들고 `generate_handler!`에 등록합니다.
+  2. `src/renderer/src/api.ts`의 `api`에 그 명령을 `invoke`로 감싸는 함수를 추가합니다. 컴포넌트에서 `invoke`를 직접 부르지 않습니다.
+  3. 플러그인이나 코어 API를 쓰면 `src-tauri/capabilities/default.json`의 `permissions`에 필요한 권한만 추가합니다.
+- **CSP는 `tauri.conf.json`의 `app.security.csp`에서 설정합니다.** `index.html`에 `<meta>`로 넣지 않습니다. IPC가 `ipc:`/`http://ipc.localhost`를 쓰므로 `connect-src`에서 이 둘을 빼면 안 됩니다.
+- **tsconfig는 둘로 나뉩니다.** `tsconfig.node.json`은 `vite.config.ts`를, `tsconfig.web.json`은 renderer를 다룹니다. renderer에서는 `@renderer/*` 별칭으로 `src/renderer/src`를 가리킵니다.
+- 앱 ID는 `tauri.conf.json`의 `identifier`(`com.aibuddy.app`)입니다. Windows 알림과 작업 표시줄 그룹에도 이 값이 쓰입니다.
+- **앱 버전은 `package.json` 하나에서 옵니다.** `tauri.conf.json`의 `version`이 `"../package.json"`을 가리킵니다. `Cargo.toml`의 `version`은 `0.0.0`으로 고정하고 올리지 않습니다. 올리면 브랜치마다 값이 달라져 back-merge 때 `Cargo.toml`, `Cargo.lock`이 충돌합니다.
+- 렌더러 의존성은 Vite가 번들하므로 지금처럼 `devDependencies`에 추가합니다. Rust 의존성은 `src-tauri/Cargo.toml`에 추가하고 `Cargo.lock`도 커밋합니다(CI가 `--locked`로 검사).
 
 ## 브랜치 전략과 릴리스
 
