@@ -1,19 +1,19 @@
 import { useEffect, useState } from 'react';
+import { api } from '@renderer/api';
 
 function Versions(): React.JSX.Element {
-  const [versions] = useState(window.api.versions);
   const [appVersion, setAppVersion] = useState<string>();
+  const [tauriVersion, setTauriVersion] = useState<string>();
 
   useEffect(() => {
-    void window.api.getAppVersion().then(setAppVersion);
+    void api.getAppVersion().then(setAppVersion);
+    void api.getTauriVersion().then(setTauriVersion);
   }, []);
 
   return (
     <ul className="versions">
       {appVersion && <li className="app-version">AI Buddy v{appVersion}</li>}
-      <li className="electron-version">Electron v{versions.electron}</li>
-      <li className="chrome-version">Chromium v{versions.chrome}</li>
-      <li className="node-version">Node v{versions.node}</li>
+      {tauriVersion && <li className="tauri-version">Tauri v{tauriVersion}</li>}
     </ul>
   );
 }

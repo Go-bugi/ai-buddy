@@ -2,7 +2,7 @@
   "name": "ai-buddy",
   "version": "0.1.0-alpha.1",
   "private": true,
-  "description": "AI Buddy desktop app (Electron + React + TypeScript)",
+  "description": "AI Buddy desktop app (Tauri + React + TypeScript)",
   "author": {
     "name": "Go-bugi",
     "url": "https://github.com/Go-bugi"
@@ -15,27 +15,30 @@
   "bugs": {
     "url": "https://github.com/Go-bugi/ai-buddy/issues"
   },
-  "main": "./out/main/index.js",
   "packageManager": "pnpm@10.34.6",
   "engines": {
     "node": ">=24.21.0",
     "pnpm": ">=10"
   },
   "scripts": {
-    "dev": "node scripts/dev.mjs",
-    "start": "electron .",
+    "dev": "tauri dev",
+    "dev:web": "vite",
     "typecheck": "pnpm run typecheck:node && pnpm run typecheck:web",
     "typecheck:node": "tsc --noEmit -p tsconfig.node.json --composite false",
     "typecheck:web": "tsc --noEmit -p tsconfig.web.json --composite false",
     "lint": "eslint --cache .",
     "lint:fix": "eslint --cache --fix .",
+    "lint:rust": "cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets --locked -- -D warnings",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "build": "pnpm run typecheck && node scripts/build.mjs",
-    "build:unpack": "pnpm run build && electron-builder --dir",
-    "build:mac": "pnpm run build && electron-builder --mac",
-    "build:win": "pnpm run build && electron-builder --win",
-    "build:win:arm64": "pnpm run build && electron-builder --win --arm64",
+    "format:rust": "cargo fmt --manifest-path src-tauri/Cargo.toml",
+    "format:check:rust": "cargo fmt --manifest-path src-tauri/Cargo.toml --check",
+    "build": "pnpm run typecheck && vite build",
+    "build:unpack": "tauri build --no-bundle",
+    "build:mac": "tauri build --bundles dmg",
+    "build:win": "tauri build --bundles nsis",
+    "build:win:arm64": "tauri build --bundles nsis --target aarch64-pc-windows-msvc",
+    "tauri": "tauri",
     "prepare": "husky"
   },
   "lint-staged": {
@@ -45,18 +48,22 @@
     ],
     "*.{json,css,html,md,yml,yaml}": [
       "prettier --write"
+    ],
+    "*.rs": [
+      "rustfmt --edition 2021"
     ]
   },
   "devDependencies": {
     "@commitlint/cli": "^21.2.3",
     "@commitlint/config-conventional": "^21.2.3",
     "@eslint/js": "^9.39.5",
+    "@tauri-apps/api": "^2.12.4",
+    "@tauri-apps/cli": "^2.12.4",
+    "@tauri-apps/plugin-opener": "^2.7.2",
     "@types/node": "^24.19.2",
     "@types/react": "^19.2.7",
     "@types/react-dom": "^19.2.3",
     "@vitejs/plugin-react": "^5.1.1",
-    "electron": "^44.7.0",
-    "electron-builder": "^26.0.12",
     "eslint": "^9.39.1",
     "eslint-config-prettier": "^10.1.8",
     "eslint-plugin-react": "^7.37.5",

@@ -6,7 +6,7 @@ name: Release Please
 # - main       → hotfix           (release-please-config.json)
 #
 # Release PR이 머지되어 릴리스가 만들어지면
-# - mac / Windows 빌드 후 GitHub Release에 업로드
+# - mac(arm64, x64) / Windows 빌드 후 GitHub Release에 업로드
 # - 단계 전환용 release-as 설정 삭제
 # - 정식 버전이면 직전 정식 버전부터의 전체 변경 사항을 릴리스 노트에 추가
 
@@ -62,9 +62,17 @@ jobs:
       matrix:
         include:
           - os: macos-latest
-            target: --mac
+            target: aarch64-apple-darwin
+            bundle: dmg
+            asset: mac-arm64
+          - os: macos-latest
+            target: x86_64-apple-darwin
+            bundle: dmg
+            asset: mac-x64
           - os: windows-latest
-            target: --win
+            target: x86_64-pc-windows-msvc
+            bundle: nsis
+            asset: win-x64
     runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
@@ -75,25 +83,42 @@ jobs:
         with:
           node-version-file: .nvmrc
           cache: pnpm
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+      - uses: Swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> target
+          key: ${{ matrix.target }}
       - run: pnpm install --frozen-lockfile
-      - run: pnpm run build
+      # beforeBuildCommand(pnpm build)로 renderer를 빌드한 뒤 Rust를 컴파일하고 패키징한다.
+      # 앱 버전은 tauri.conf.json이 package.json에서 읽는다.
+      # 서명 없이 빌드 (배포 시 secrets로 APPLE_CERTIFICATE 등 Tauri 서명 환경 변수 설정)
       - name: Package
-        run: pnpm exec electron-builder ${{ matrix.target }} --publish never
-        env:
-          # 서명 인증서 없이 빌드 (배포 시 secrets로 CSC_LINK / CSC_KEY_PASSWORD 설정)
-          CSC_IDENTITY_AUTO_DISCOVERY: false
+        run: pnpm tauri build --target ${{ matrix.target }} --bundles ${{ matrix.bundle }} --ci
       - name: Upload to GitHub Release
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.release-please.outputs.tag_name }}
+          VERSION: ${{ needs.release-please.outputs.version }}
         run: |
           set -euo pipefail
           shopt -s nullglob
+          # Tauri 기본 파일 이름(AI Buddy_1.3.0_aarch64.dmg)을 기존 이름 규칙으로 바꾼다.
           files=()
-          for f in release/*/*.{dmg,zip,exe,blockmap,yml}; do
-            [ "$(basename "$f")" = builder-debug.yml ] || files+=("$f")
+          for f in src-tauri/target/${{ matrix.target }}/release/bundle/${{ matrix.bundle }}/*.{dmg,exe}; do
+            case "$f" in
+              *.dmg) name="ai-buddy-${VERSION}-${{ matrix.asset }}.dmg" ;;
+              *.exe) name="ai-buddy-${VERSION}-${{ matrix.asset }}-setup.exe" ;;
+            esac
+            cp "$f" "$name"
+            files+=("$name")
           done
+          if [ "${#files[@]}" -eq 0 ]; then
+            echo "::error::업로드할 설치 파일이 없습니다."
+            exit 1
+          fi
           gh release upload "$TAG" "${files[@]}" --clobber --repo "$GITHUB_REPOSITORY"
 
   # 단계 전환용으로 넣은 release-as는 릴리스가 끝나면 지운다.

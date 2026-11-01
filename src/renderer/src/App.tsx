@@ -1,23 +1,24 @@
 import Versions from './components/Versions';
-import electronLogo from './assets/electron.svg';
+import logo from './assets/logo.png';
+import { api } from './api';
 
 function App(): React.JSX.Element {
-  const ipcHandle = (): void => window.api.ping();
+  const ipcHandle = (): void => void api.ping();
 
   return (
     <>
-      <img alt="logo" className="logo" src={electronLogo} />
-      <div className="creator">Powered by Electron + Vite</div>
+      <img alt="logo" className="logo" src={logo} />
+      <div className="creator">Powered by Tauri + Vite</div>
       <div className="text">
-        Build an Electron app with <span className="react">React</span>
+        Build a Tauri app with <span className="react">React</span>
         &nbsp;and <span className="ts">TypeScript</span>
       </div>
       <p className="tip">
-        Please try pressing <code>F12</code> to open the devTool
+        Right-click and choose <code>Inspect</code> to open the devTool
       </p>
       <div className="actions">
         <div className="action">
-          <a href="https://www.electronjs.org/docs/latest/" target="_blank" rel="noreferrer">
+          <a href="https://v2.tauri.app/start/" target="_blank" rel="noreferrer">
             Documentation
           </a>
         </div>

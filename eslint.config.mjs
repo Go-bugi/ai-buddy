@@ -8,13 +8,22 @@ import eslintPluginReactHooks from 'eslint-plugin-react-hooks';
 import eslintPluginReactRefresh from 'eslint-plugin-react-refresh';
 
 export default defineConfig(
-  { ignores: ['**/node_modules', '**/dist', '**/out', '**/release'] },
+  {
+    ignores: [
+      '**/node_modules',
+      '**/dist',
+      '**/out',
+      '**/release',
+      'src-tauri/target',
+      'src-tauri/gen',
+    ],
+  },
   js.configs.recommended,
   tseslint.configs.recommended,
 
-  // main / preload / 빌드 스크립트 / 설정 파일: Node 환경
+  // 설정 파일: Node 환경
   {
-    files: ['src/main/**/*.ts', 'src/preload/**/*.ts', 'scripts/**/*.mjs', '*.{js,mjs,cjs,ts}'],
+    files: ['*.{js,mjs,cjs,ts}'],
     languageOptions: {
       globals: globals.node,
     },
