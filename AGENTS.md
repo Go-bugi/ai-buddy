@@ -13,7 +13,7 @@ pnpm format:check     # Prettier 검사 (format으로 자동 수정)
 pnpm format:check:rust # rustfmt 검사 (format:rust로 자동 수정)
 pnpm build            # typecheck 후 renderer만 out/renderer에 빌드
 pnpm build:unpack     # 설치 파일 없이 앱 실행 파일만 빌드 (src-tauri/target/release/)
-pnpm build:mac        # dmg 패키징. build:win은 nsis 설치 파일
+pnpm build:mac        # dmg 패키징. build:win은 nsis 설치 파일, build:win:arm64는 Windows ARM용 nsis 설치 파일
 ```
 
 - 테스트 러너는 아직 없습니다. PR CI(`pr-check.yml`)는 `format:check`, `lint`, `build`, `format:check:rust`, `lint:rust`를 돌립니다.
@@ -25,10 +25,10 @@ pnpm build:mac        # dmg 패키징. build:win은 nsis 설치 파일
 
 [Tauri 2](https://v2.tauri.app/)를 씁니다. 화면은 React 앱(`src/renderer`)이고, OS 기능과 창 관리는 Rust(`src-tauri`)가 맡습니다.
 
-| 영역     | 위치           | 빌드                                       | 출력                                 |
-| -------- | -------------- | ------------------------------------------ | ------------------------------------ |
-| renderer | `src/renderer` | `vite.config.ts`                           | `out/renderer`                       |
-| 앱(Rust) | `src-tauri`    | `cargo`. Tauri CLI가 `tauri.conf.json`대로 | `src-tauri/target/<target>/release/` |
+| 영역     | 위치           | 빌드                                       | 출력                                                                                |
+| -------- | -------------- | ------------------------------------------ | ----------------------------------------------------------------------------------- |
+| renderer | `src/renderer` | `vite.config.ts`                           | `out/renderer`                                                                      |
+| 앱(Rust) | `src-tauri`    | `cargo`. Tauri CLI가 `tauri.conf.json`대로 | `src-tauri/target/release/`(`--target`을 주면 `src-tauri/target/<target>/release/`) |
 
 - **Tauri CLI가 Vite를 부릅니다.** `pnpm dev`(`tauri dev`)는 `beforeDevCommand`로 `pnpm dev:web`(Vite, 5173 `strictPort`)를 띄우고 그 주소를 웹뷰에 엽니다. `tauri build`는 `beforeBuildCommand`로 `pnpm build`를 돌린 뒤 `out/renderer`를 실행 파일에 넣습니다.
 - **웹뷰는 OS마다 다릅니다.** macOS는 WKWebView(Safari 계열), Windows는 WebView2(Chromium)입니다. CSS와 Web API는 Safari에서도 동작하는지 확인하고, `vite.config.ts`의 `build.target`도 플랫폼에 따라 다르게 잡습니다.
