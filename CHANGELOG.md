@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.0-alpha.2](https://github.com/Go-bugi/ai-buddy/compare/v0.1.0-alpha.1...v0.1.0-alpha.2) (2026-11-01)
+
+
+### Features
+
+* 설치 파일 크기를 약 2MB로 축소 ([#3](https://github.com/Go-bugi/ai-buddy/issues/3)) ([e5108ab](https://github.com/Go-bugi/ai-buddy/commit/e5108ab8f368da7fecac248e9c92315cd4e9769f))
+
 ## 0.1.0-alpha.1 (2026-10-11)
 
 
