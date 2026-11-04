@@ -65,12 +65,15 @@ pnpm build:mac        # dmg 패키징. build:win은 nsis 설치 파일, build:wi
 
 반복 작업의 절차는 `.agents/skills/<이름>/SKILL.md`에 있습니다. 해당 작업을 할 때는 먼저 그 파일을 읽고 따르세요. 스킬을 불러오는 기능이 있는 에이전트는 그 기능으로 불러와도 됩니다. SKILL.md 안에서 다른 파일을 가리키는 경로는 저장소 루트 기준입니다.
 
-| 스킬                  | 쓰는 때                                                                                                             |
-| --------------------- | ------------------------------------------------------------------------------------------------------------------- |
-| `commit`              | 커밋. 커밋할 때 commitlint를 돌리지 않으므로 스킬의 형식 규칙(설명 첫 글자를 대문자로 쓰지 않기 등)을 직접 지킵니다 |
-| `pr`                  | PR 생성. base 판단, 릴리스 노트용 제목, `.github/PULL_REQUEST_TEMPLATE.md` 채우기                                   |
-| `korean-tech-writing` | 한국어 문서, PR 본문, 커밋 메시지, 주석                                                                             |
-| `humanizer`           | 한국어 글의 AI 말투 점검. `korean-tech-writing`이 긴 문서에서 부릅니다                                              |
+| 스킬                  | 쓰는 때                                                                                                               |
+| --------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `commit`              | 커밋. 커밋할 때 commitlint를 돌리지 않으므로 스킬의 형식 규칙(설명 첫 글자를 대문자로 쓰지 않기 등)을 직접 지킵니다   |
+| `pr`                  | PR 생성. base 판단, 릴리스 노트용 제목, `.github/PULL_REQUEST_TEMPLATE.md` 채우기                                     |
+| `korean-tech-writing` | 한국어 문서, PR 본문, 커밋 메시지, 주석                                                                               |
+| `humanizer`           | 한국어 글의 AI 말투 점검. `korean-tech-writing`이 긴 문서에서 부릅니다                                                |
+| `threejs-*`           | 3D 씬과 R3F 컴포넌트 작업. 이 앱은 R3F를 쓰므로 `threejs-react-three-fiber`부터 봅니다. 아래 CSP 제약을 함께 지킵니다 |
 
 - 스킬 원본은 `.agents/skills/` 한 곳에만 둡니다. 에이전트별 스킬 폴더(예: `.claude/skills/`)에는 원본을 가리키는 스킬별 심링크만 둡니다. 스킬을 추가하거나 고칠 때도 `.agents/skills/`에서 작업합니다.
-- `.agents`는 `.prettierignore`에 들어 있습니다. 외부에서 가져온 스킬을 원본 그대로 두기 위해서입니다.
+- `.agents`는 `.prettierignore`와 ESLint `ignores`에 들어 있습니다. 외부에서 가져온 스킬을 원본 그대로 두기 위해서입니다.
+- `threejs-*` 13개는 [CloudAI-X/threejs-skills](https://github.com/CloudAI-X/threejs-skills)(MIT)를 그대로 가져온 것입니다. 갱신할 때도 원본을 덮어쓰고 직접 고치지 않습니다.
+- **3D 작업의 CSP 제약**: CSP가 외부 주소를 막으므로 에셋과 디코더는 앱 안(`'self'`)에서만 불러옵니다. drei `Environment`의 `preset`(외부 HDR)은 쓰지 말고 `files`에 앱 안의 HDR 파일을 넘깁니다. `useGLTF`의 기본 Draco 디코더도 gstatic에서 받아 오므로, Draco 모델을 쓸 때는 디코더를 앱에 넣고 `useGLTF.setDecoderPath`로 그 경로를 가리킵니다.

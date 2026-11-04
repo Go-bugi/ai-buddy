@@ -16,6 +16,8 @@ export default defineConfig(
       '**/release',
       'src-tauri/target',
       'src-tauri/gen',
+      // 외부에서 가져온 스킬은 원본 그대로 둔다
+      '.agents',
     ],
   },
   js.configs.recommended,
