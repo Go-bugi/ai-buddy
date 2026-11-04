@@ -53,6 +53,8 @@ export default defineConfig(
       ...eslintPluginReact.configs.flat['jsx-runtime'].rules,
       ...eslintPluginReactHooks.configs.recommended.rules,
       ...eslintPluginReactRefresh.configs.vite.rules,
+      // R3F의 three 속성(args, intensity 등)을 DOM 속성으로 오인한다. JSX 속성은 TypeScript가 검사한다
+      'react/no-unknown-property': 'off',
     },
   },
 

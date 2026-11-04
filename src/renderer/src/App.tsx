@@ -1,13 +1,19 @@
+import { lazy, Suspense } from 'react';
 import Versions from './components/Versions';
 import logo from './assets/logo.png';
 import { api } from './api';
+
+// three가 커서 첫 화면 번들과 분리한다
+const DemoScene = lazy(() => import('./components/DemoScene'));
 
 function App(): React.JSX.Element {
   const ipcHandle = (): void => void api.ping();
 
   return (
     <>
-      <img alt="logo" className="logo" src={logo} />
+      <Suspense fallback={<img alt="logo" className="logo" src={logo} />}>
+        <DemoScene />
+      </Suspense>
       <div className="creator">Powered by Tauri + Vite</div>
       <div className="text">
         Build a Tauri app with <span className="react">React</span>
