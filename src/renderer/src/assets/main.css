@@ -47,6 +47,14 @@ code {
   filter: drop-shadow(0 0 1.2em #6988e6aa);
 }
 
+/* Canvas는 부모 크기를 채우므로 부모에 크기를 준다 */
+.demo-scene {
+  margin-bottom: 20px;
+  height: 200px;
+  width: 200px;
+  cursor: grab;
+}
+
 .creator {
   font-size: 14px;
   line-height: 16px;
