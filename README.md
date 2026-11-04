@@ -133,11 +133,67 @@ vite.config.ts
 5. `release/1.3.0` → `main` PR을 **merge commit**으로 머지 (제목은 `Release 1.3.0`처럼, Conventional Commits 형식 아님)
 6. 자동으로 만들어진 `develop` back-merge PR을 **merge commit**으로 머지
 
+태그는 Release PR을 머지할 때 붙습니다. 속이 빈 원은 다른 브랜치를 합친 머지 커밋입니다.
+
+```mermaid
+%%{init: {'gitGraph': {'mainBranchName': 'main', 'showCommitLabel': false}} }%%
+gitGraph
+    commit tag: "v1.2.0"
+    branch develop order: 3
+    commit
+    branch feature/x order: 4
+    commit
+    commit
+    checkout develop
+    merge feature/x
+    commit tag: "v1.3.0-alpha.1"
+    branch release/1.3.0 order: 1
+    commit tag: "v1.3.0-beta.1"
+    checkout develop
+    commit
+    commit tag: "v1.4.0-alpha.1"
+    checkout release/1.3.0
+    branch fix/x order: 2
+    commit
+    checkout release/1.3.0
+    merge fix/x
+    commit tag: "v1.3.0-beta.2"
+    commit
+    commit tag: "v1.3.0-rc.1"
+    commit
+    commit tag: "v1.3.0"
+    checkout main
+    merge release/1.3.0
+    checkout develop
+    merge release/1.3.0
+```
+
 **hotfix**
 
 1. `main`에서 `hotfix/x.y.z` 브랜치를 만들어 수정
 2. `main`으로 PR (`fix: ...`, **squash**) → `main`의 Release PR 머지
 3. `develop`과 진행 중인 `release/*`에는 자동으로 반영됩니다.
+
+```mermaid
+%%{init: {'gitGraph': {'mainBranchName': 'main', 'showCommitLabel': false}} }%%
+gitGraph
+    commit
+    branch develop order: 2
+    commit
+    branch release/1.4.0 order: 3
+    commit tag: "v1.4.0-beta.1"
+    checkout main
+    commit tag: "v1.3.0"
+    branch hotfix/1.3.1 order: 1
+    commit
+    checkout main
+    merge hotfix/1.3.1
+    commit tag: "v1.3.1"
+    checkout develop
+    merge main
+    checkout release/1.4.0
+    merge main
+```
 
 ### 규칙
 
